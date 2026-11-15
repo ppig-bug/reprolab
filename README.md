@@ -2,7 +2,7 @@
 
 > 把每一次论文复现，都装进一个独立的小框里 ✨
 
-🌐 **在线访问：** https://YOURNAME.github.io/reprolab/
+🌐 **在线访问：** https://ppig-bug.github.io/reprolab/
 💻 **本地运行：** node server.js 后打开 http://127.0.0.1:8123
 
 ## 这是什么 📚
