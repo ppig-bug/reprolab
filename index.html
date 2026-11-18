@@ -168,6 +168,8 @@ img{display:block;max-width:100%}
 .detail-meta .dot{width:3px;height:3px;border-radius:50%;background:var(--border-strong)}
 .detail-grid{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:26px;align-items:start}
 .gallery{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.site-note{font-size:12px;line-height:1.7;color:var(--muted);margin-bottom:10px}
+.site-frame{display:block;width:100%;height:680px;border:1px solid var(--border);border-radius:10px;background:#fff}
 .gitem{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--surface);cursor:zoom-in;transition:.16s}
 .gitem:hover{border-color:var(--border-strong);box-shadow:var(--shadow)}
 .gitem.big{grid-column:1/-1}
@@ -248,6 +250,7 @@ table.metrics .delta{color:var(--muted);font-size:11.5px}
   .frm{grid-template-columns:1fr}
   .mrow{grid-template-columns:1fr 1fr;gap:6px}
   .gallery{grid-template-columns:1fr}
+  .site-frame{height:520px}
 }
 </style>
 </head><body>
@@ -281,6 +284,7 @@ table.metrics .delta{color:var(--muted);font-size:11.5px}
       <div class="top-actions">
         <button class="btn ghost" id="btnImport" title="从 JSON 导入记录">导入</button>
         <button class="btn ghost" id="btnExport" title="导出全部记录为 JSON">导出</button>
+        <button class="btn ghost" id="btnPublish" title="导出 records.json，用于 GitHub Pages 静态发布">发布</button>
         <button class="icon-btn" id="btnTheme" title="切换深浅色">☾</button>
         <button class="btn primary" id="btnNew">＋ 新建实验</button>
       </div>
@@ -444,6 +448,32 @@ function sampleRecords(){
   ];
 }
 
+async function loadPublishedRecords(){
+  try{
+    const res=await fetch("records.json",{cache:"no-store"});
+    if(!res.ok)return;
+    const data=await res.json();
+    const arr=Array.isArray(data)?data:(data&&data.records)||[];
+    if(!Array.isArray(arr))return;
+    for(const raw of arr){
+      if(!raw||typeof raw!=="object"||!raw.id)continue;
+      const rec={...raw};
+      rec.siteUrl=rec.siteUrl||"";
+      rec.tags=Array.isArray(rec.tags)?rec.tags:[];
+      rec.metrics=Array.isArray(rec.metrics)?rec.metrics:[];
+      rec.images=Array.isArray(rec.images)?rec.images:[];
+      rec.createdAt=rec.createdAt||nowStr();
+      rec.updatedAt=rec.updatedAt||rec.createdAt;
+      rec.status=normStatus(rec.status);
+      const i=state.records.findIndex(x=>x.id===rec.id);
+      if(i<0)state.records.push(rec);
+      else if(String(rec.updatedAt)>String(state.records[i].updatedAt||""))state.records[i]=rec;
+    }
+  }catch(e){
+    console.warn("records.json 未加载，继续使用本地记录",e);
+  }
+}
+
 function emptyState(){
   return '<div class="empty"><div class="em">🌸</div><h3>还没有实验</h3>'+
     '<p>新建第一个复现实验，或者先载入 PPO 那组实验看看每个实验框里有什么。</p>'+
@@ -531,7 +561,8 @@ function renderDetail(id){
       '<span class="rv">'+esc(m.ours==null||m.ours===""?"—":m.ours)+(m.unit?" "+esc(m.unit):"")+'</span>'+
       '<span class="rd">差值 '+deltaText(m.paper,m.ours)+'</span></div>').join("")
     :'<div class="res-row"><span class="rn">暂无指标</span><span class="rv">—</span><span class="rd">—</span></div>';
-  const btnLink=(u,label)=>{if(!u)return '';const safe=/^https?:\/\//i.test(u)?u:"https://"+u;return '<a class="btn small" href="'+esc(safe)+'" target="_blank" rel="noopener noreferrer">'+esc(label)+' ↗</a>';};
+  const toUrl=u=>{const raw=String(u||"").trim();if(!raw)return "";if(/^(https?:\/\/|\/|\.\/|\.\.\/)/i.test(raw))return raw;return "https://"+raw;};
+  const btnLink=(u,label)=>{const safe=toUrl(u);if(!safe)return '';return '<a class="btn small" href="'+esc(safe)+'" target="_blank" rel="noopener noreferrer">'+esc(label)+' ↗</a>';};
   const statusLineRaw={done:"按论文配置完成复现，结果与论文基本一致。",running:"复现仍在进行中，当前为阶段性结果。"}[normStatus(r.status)]||"";
   const statusLine=r.practice?"赛前练手跑通的结果，仅做流程验证。":statusLineRaw;
   const pracNote=r.practice?'<div class="practice-note">赛前练手记录：这是熟悉平台流程时跑通的结果，看的是整套流程能不能走通，不是对论文指标的严格复现。</div>':'';
@@ -543,7 +574,7 @@ function renderDetail(id){
       '<h1 class="display">'+esc(r.title)+'</h1>'+
       '<div class="detail-meta">'+(r.authors?'<span>'+esc(r.authors)+'</span><span class="dot"></span>':'')+
         '<span>更新于 '+esc(fmtDate(r.updatedAt))+'</span></div>'+
-      '<div class="dh-links">'+btnLink(r.paperUrl,"论文原文")+btnLink(r.codeUrl,"代码仓库")+
+      '<div class="dh-links">'+btnLink(r.paperUrl,"论文原文")+btnLink(r.codeUrl,"代码仓库")+btnLink(r.siteUrl,"复现网站")+
         (r.commit?'<span class="chip mono">commit '+esc(r.commit)+'</span>':'')+'</div></div>'+
     '<div class="detail-grid"><div style="display:flex;flex-direction:column;min-width:0">'+
       '<section class="block"><div class="block-h"><span class="no">01</span><h2>论文</h2></div>'+
@@ -553,11 +584,16 @@ function renderDetail(id){
           '<div class="paper-links">'+(r.paperUrl?btnLink(r.paperUrl,"打开论文"):'<span style="color:var(--muted);font-size:12.5px">未填写论文链接</span>')+
             (r.codeUrl?btnLink(r.codeUrl,"打开代码"):'')+'</div>'+
         '</div></div></section>'+
-      '<section class="block"><div class="block-h"><span class="no">02</span><h2>指标对比</h2><span class="hint2">论文值 → 复现值</span></div>'+
+      (r.siteUrl?'<section class="block"><div class="block-h"><span class="no">02</span><h2>复现网站</h2><span class="hint2">iframe 嵌入</span></div>'+
+        '<div class="panel"><div class="panel-b">'+
+          '<div class="site-note">如果下方区域空白，通常是目标网站禁止 iframe 嵌入；请点击上方「复现网站 ↗」在新窗口打开。</div>'+
+          '<iframe class="site-frame" src="'+esc(toUrl(r.siteUrl))+'" title="论文复现网站" loading="lazy" referrerpolicy="no-referrer"></iframe>'+
+        '</div></div></section>':'')+
+      '<section class="block"><div class="block-h"><span class="no">03</span><h2>指标对比</h2><span class="hint2">论文值 → 复现值</span></div>'+
         '<div class="panel"><table class="metrics"><thead><tr><th>指标</th><th style="text-align:right">论文</th><th style="text-align:right">复现</th><th style="text-align:right">差值</th></tr></thead><tbody>'+mrows+'</tbody></table></div></section>'+
-      '<section class="block"><div class="block-h"><span class="no">03</span><h2>复现图像</h2><span class="hint2">'+imgs.length+' 张</span></div>'+
+      '<section class="block"><div class="block-h"><span class="no">04</span><h2>复现图像</h2><span class="hint2">'+imgs.length+' 张</span></div>'+
         '<div class="gallery">'+gal+'</div></section>'+
-      '<section class="block"><div class="block-h"><span class="no">04</span><h2>实验结果</h2></div>'+
+      '<section class="block"><div class="block-h"><span class="no">05</span><h2>实验结果</h2></div>'+
         '<div class="panel"><div class="panel-b">'+
           '<div class="res-head"><span class="pill '+normStatus(r.status)+'"><i></i>'+statusLabel(r.status)+'</span><span class="res-k">'+esc(statusLine)+'</span></div>'+
           '<div class="res-list">'+resRows+'</div>'+
@@ -595,7 +631,7 @@ function closeLightbox(){$("#lightbox").classList.add("hidden");}
 
 function blankRecord(){
   return {id:newId(),title:"",authors:"",venue:"",year:new Date().getFullYear(),sim:"mjlab",robot:"",gpu:"",framework:"",
-    status:"running",paperUrl:"",codeUrl:"",commit:"",tags:[],notes:"",metrics:[],images:[],createdAt:nowStr(),updatedAt:nowStr()};
+    status:"running",paperUrl:"",codeUrl:"",siteUrl:"",commit:"",tags:[],notes:"",metrics:[],images:[],createdAt:nowStr(),updatedAt:nowStr()};
 }function openEditor(id){
   const isEdit=!!id;
   const src=isEdit?state.records.find(x=>x.id===id):null;
@@ -624,6 +660,7 @@ function blankRecord(){
         '<div class="field"><label>标签 <span class="hint">逗号分隔</span></label><input class="input" name="tags" value="'+esc(rec.tags.join(", "))+'" placeholder="humanoid, locomotion"/></div>'+
         '<div class="field"><label>论文链接</label><input class="input" name="paperUrl" value="'+esc(rec.paperUrl)+'" placeholder="https://arxiv.org/abs/..."/></div>'+
         '<div class="field"><label>代码链接</label><input class="input" name="codeUrl" value="'+esc(rec.codeUrl)+'" placeholder="https://github.com/..."/></div>'+
+        '<div class="field full"><label>复现网站 <span class="hint">可嵌入的页面地址；被目标站点拦截时会提供新窗口入口</span></label><input class="input" name="siteUrl" value="'+esc(rec.siteUrl||"")+'" placeholder="https://your-site.github.io/repro/"/></div>'+
         '<div class="field"><label>Commit / 版本</label><input class="input" name="commit" value="'+esc(rec.commit)+'" placeholder="a1f3d9c"/></div>'+
         '<div class="field full"><label>复现笔记 <span class="hint">环境差异、失败原因、待办</span></label><textarea name="notes" placeholder="用了什么配置，和论文差在哪，卡在什么地方…">'+esc(rec.notes)+'</textarea></div>'+
       '</div>'+
@@ -685,7 +722,7 @@ function blankRecord(){
     rec.title=g("title");rec.authors=g("authors");rec.venue=g("venue");
     rec.year=parseInt(g("year"),10)||null;
     rec.status=g("status");rec.sim=g("sim");rec.robot=g("robot");rec.gpu=g("gpu");rec.framework=g("framework");
-    rec.paperUrl=g("paperUrl");rec.codeUrl=g("codeUrl");rec.commit=g("commit");rec.notes=g("notes");
+    rec.paperUrl=g("paperUrl");rec.codeUrl=g("codeUrl");rec.siteUrl=g("siteUrl");rec.commit=g("commit");rec.notes=g("notes");
     rec.tags=g("tags").split(/[,，\s]+/).map(x=>x.trim()).filter(Boolean);
     rec.metrics=$$(".mrow",wrap).map(row=>{const q=k=>{const el=row.querySelector('[data-m="'+k+'"]');return el?el.value.trim():"";};
       return {name:q("name"),paper:q("paper"),ours:q("ours"),unit:q("unit")};}).filter(m=>m.name);
@@ -841,6 +878,7 @@ async function seedSamples(){
 function bind(){
   $("#btnNew").addEventListener("click",()=>openEditor());
   $("#btnExport").addEventListener("click",()=>exportRecords(state.records,"reprolab-"+stamp()+".json"));
+  $("#btnPublish").addEventListener("click",()=>download("records.json",JSON.stringify({app:"ReproLab",version:1,exportedAt:new Date().toISOString(),records:state.records},null,2)));
   $("#btnImport").addEventListener("click",()=>$("#importFile").click());
   $("#importFile").addEventListener("change",importFile);
   $("#btnTheme").addEventListener("click",()=>applyTheme(state.theme==="dark"?"light":"dark"));
@@ -868,6 +906,7 @@ function bind(){
     for(const r of sampleRecords()){ if(!state.records.some(x=>x.id===r.id)){ await Store.put(r); state.records.push(r); } }
     safeSet("reprolab.seed","v2");
   }
+  await loadPublishedRecords();
   state.records.forEach(r=>{ r.status=normStatus(r.status); });
   if(!state.records.length && /(?:^|[?&])demo=1(?:&|$)/.test(location.search)){ state.records=sampleRecords(); for(const r of state.records) await Store.put(r); }
   bind();
