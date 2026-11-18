@@ -1,0 +1,106 @@
+{
+  "app": "ReproLab",
+  "version": 1,
+  "exportedAt": "2026-11-18T08:30:00.149Z",
+  "records": [
+    {
+      "id": "sample-ppo",
+      "title": "PPO 论文复现：Figure 1 / Figure 2",
+      "paperTitle": "Proximal Policy Optimization Algorithms",
+      "authors": "Schulman, Wolski, Dhariwal, Radford, Klimov",
+      "venue": "arXiv 1707.06347",
+      "year": 2017,
+      "sim": "mujoco",
+      "robot": "Hopper-v4",
+      "gpu": "CPU",
+      "framework": "PyTorch（自写 PPO）",
+      "status": "done",
+      "practice": false,
+      "paperUrl": "https://arxiv.org/abs/1707.06347",
+      "codeUrl": "",
+      "commit": "—",
+      "tags": [
+        "PPO",
+        "Figure 1",
+        "Figure 2",
+        "Hopper-v4"
+      ],
+      "notes": "Figure 1：直接按 L^CLIP = E[min(r·A, clip(r, 1-ε, 1+ε)·A)] 画图，ε=0.2，r 从 0 扫到 2，A=+1 与 A=-1 各一张子图。红点是优化起点 r=1；r 掉出 [0.8, 1.2] 之后目标被削平，和论文图一致。\nFigure 2：在 Hopper-v4 上先做一次 PPO 更新，再按 θ_t = (1-t)·θ_old + t·θ_new 扫 41 个 t，画出 KL、L^CPI、E[clip(r)A]、L^CLIP 四条曲线。t 是参数插值因子，不是学习率，也不是训练步数。\n核对：t=1 时 L^CLIP（0.0326）低于 L^CPI（0.0429），E[clip(r)A]（0.0372）也低于 L^CPI，符合「裁剪只会压低目标、不会抬高」的预期。\n训练侧顺带自测了一次 CartPole-v1：seed=0，12 万环境步，40960 步评估回报就到 500（环境上限），之后一直饱和，说明实现能收敛；CartPole 数字论文没报告，所以只作为实现自测放在第三张图。",
+      "metrics": [
+        {
+          "name": "Fig.1 裁剪区间 [1-ε, 1+ε]",
+          "paper": "见论文 Figure 1",
+          "ours": "0.8 – 1.2",
+          "unit": ""
+        },
+        {
+          "name": "Fig.1 L^CLIP (r=1.2, A=+1)",
+          "paper": "1.000",
+          "ours": "1.000",
+          "unit": ""
+        },
+        {
+          "name": "Fig.1 L^CLIP (r=0.8, A=-1)",
+          "paper": "-0.800",
+          "ours": "-0.800",
+          "unit": ""
+        },
+        {
+          "name": "Fig.2 E_t[KL_t] (t=1)",
+          "paper": "未报告",
+          "ours": "0.0282",
+          "unit": "nats"
+        },
+        {
+          "name": "Fig.2 L^CPI (t=1)",
+          "paper": "未报告",
+          "ours": "0.0429",
+          "unit": ""
+        },
+        {
+          "name": "Fig.2 E[clip(r)A] (t=1)",
+          "paper": "未报告",
+          "ours": "0.0372",
+          "unit": ""
+        },
+        {
+          "name": "Fig.2 L^CLIP (t=1)",
+          "paper": "未报告",
+          "ours": "0.0326",
+          "unit": ""
+        },
+        {
+          "name": "CartPole-v1 最终评估回报（自测）",
+          "paper": "未报告",
+          "ours": "500.0",
+          "unit": "分"
+        }
+      ],
+      "images": [
+        {
+          "id": "rmwhii5ucfvgv",
+          "name": "ppo-fig1.png",
+          "caption": "Figure 1：概率比 r 与裁剪后目标 L^CLIP 的关系（ε=0.2）",
+          "kind": "curve",
+          "data": "assets/ppo-fig1.png"
+        },
+        {
+          "id": "rmwhii5ucnkxm",
+          "name": "ppo-fig2.png",
+          "caption": "Figure 2：Hopper-v4 单次更新后沿 θ_t 插值的四条曲线",
+          "kind": "curve",
+          "data": "assets/ppo-fig2.png"
+        },
+        {
+          "id": "rmwhii5uclao6",
+          "name": "cartpole-curve.png",
+          "caption": "实现自测：CartPole-v1 评估回报随环境步数变化（seed=0）",
+          "kind": "curve",
+          "data": "assets/ppo-cartpole.png"
+        }
+      ],
+      "createdAt": "2026-11-15 15:27",
+      "updatedAt": "2026-11-15 15:27"
+    }
+  ]
+}
